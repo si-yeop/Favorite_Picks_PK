@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Favorite Pokemon Diagram</title>
+    <link rel="preconnect" href="https://raw.githubusercontent.com" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Favorite Picks</p>
+          <h1>PK-FAVORITE</h1>
+        </div>
+        <div class="view-switch" role="tablist" aria-label="분류">
+          <button class="is-active" type="button" data-view="pokemon" role="tab" aria-selected="true">포켓몬</button>
+          <button type="button" data-view="people" role="tab" aria-selected="false">등장인물</button>
+        </div>
+      </header>
+
+      <section class="workspace" aria-live="polite">
+        <section class="board-panel" aria-label="최애 보드">
+          <div class="board-head">
+            <h2 id="boardTitle">타입별 최애 포켓몬</h2>
+            <div class="board-actions">
+              <button class="icon-button" id="exportButton" type="button" aria-label="PNG 저장" title="PNG 저장">
+                <span aria-hidden="true">⇩</span>
+              </button>
+              <button class="icon-button" id="randomizeButton" type="button" aria-label="랜덤 채우기" title="랜덤 채우기">
+                <span aria-hidden="true">↻</span>
+              </button>
+              <button class="icon-button" id="resetButton" type="button" aria-label="초기화" title="초기화">
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+          </div>
+          <div class="diagram-grid" id="diagramGrid"></div>
+        </section>
+
+        <aside class="picker-panel" aria-label="선택 목록">
+          <div class="picker-toolbar">
+            <div class="search-wrap">
+              <span aria-hidden="true">⌕</span>
+              <input id="searchInput" type="search" autocomplete="off" placeholder="검색" />
+            </div>
+            <select id="filterSelect" aria-label="필터"></select>
+          </div>
+          <div class="candidate-grid" id="candidateGrid"></div>
+        </aside>
+      </section>
+      <footer class="source-line">
+        <span>Data: PokéAPI · Bulbapedia · 2026-05-21 기준 자동 갱신</span>
+      </footer>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
