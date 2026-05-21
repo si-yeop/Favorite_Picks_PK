@@ -658,15 +658,11 @@ async function loadPokemonDb() {
     });
   });
 
-  const pokemon = Array.from(speciesById.values())
-    .filter((pokemon) => pokemon.types.length)
+  await hydrateKoreanPokemonNames(speciesById);
+
+  return Array.from(speciesById.values())
+    .filter((pokemon) => pokemon.types.length && pokemon.nameKo)
     .sort((a, b) => a.id - b.id);
-
-  hydrateKoreanPokemonNames(speciesById)
-    .catch(() => {})
-    .finally(() => render());
-
-  return pokemon;
 }
 
 async function loadPeopleDb() {
@@ -734,21 +730,21 @@ async function loadPeopleDb() {
 
 function createFallbackPokemon() {
   return [
-    [143, "Snorlax", "normal"],
-    [6, "Charizard", "fire"],
-    [658, "Greninja", "water"],
-    [549, "Lilligant", "grass"],
-    [100, "Voltorb", "electric"],
-    [38, "Ninetales-Alola", "ice"],
-    [65, "Alakazam", "psychic"],
-    [94, "Gengar", "ghost"],
-    [149, "Dragonite", "dragon"],
+    [143, "잠만보", "normal"],
+    [6, "리자몽", "fire"],
+    [658, "개굴닌자", "water"],
+    [549, "드레디어", "grass"],
+    [100, "찌리리공", "electric"],
+    [38, "나인테일", "ice"],
+    [65, "후딘", "psychic"],
+    [94, "팬텀", "ghost"],
+    [149, "망나뇽", "dragon"],
   ].map(([id, name, type]) => ({
     id,
     name,
-    nameEn: name,
-    nameKo: "",
-    slug: String(name).toLowerCase(),
+    nameEn: "",
+    nameKo: name,
+    slug: "",
     aliases: [],
     types: [type],
     image: spriteUrl(id),
@@ -890,13 +886,9 @@ function matchesQuery(item, query) {
   const haystack = [
     item.name,
     item.nameKo,
-    item.nameEn,
-    item.slug,
     ...(item.aliases || []),
     item.role,
     ...(item.types || []),
-    ...(item.games || []),
-    ...(item.generations || []),
   ]
     .filter(Boolean)
     .join(" ")
@@ -917,9 +909,7 @@ function subtitle(item) {
     return item.types.map((type) => TYPE_META.find((entry) => entry.id === type)?.ko || type).join(" · ");
   }
   const role = ROLE_META.find((entry) => entry.id === item.role)?.ko || item.role;
-  const game = item.games?.[0] || "게임";
-  const sourceName = item.nameEn && item.nameEn !== item.name ? `${item.nameEn} · ` : "";
-  return `${sourceName}${role} · ${game}`;
+  return role;
 }
 
 function randomizeCurrentView() {
@@ -1358,11 +1348,11 @@ async function hydrateKoreanPokemonNames(speciesById) {
       if (!response.ok) return;
       const payload = await response.json();
       const koName = payload.names?.find((name) => name.language?.name === "ko")?.name || "";
-      if (koName) {
-        entry.nameKo = koName;
-        entry.name = koName;
-        entry.aliases = [entry.nameEn, entry.slug];
-      }
+    if (koName) {
+      entry.nameKo = koName;
+      entry.name = koName;
+      entry.aliases = [];
+    }
     } catch {
       return;
     }
@@ -1435,7 +1425,7 @@ function normalizePersonRecord(record) {
 }
 
 function shouldKeepPerson(record) {
-  return Boolean(record.image) && ROLE_META.some((role) => role.id === record.role);
+  return Boolean(record.image) && Boolean(record.nameKo) && ROLE_META.some((role) => role.id === record.role);
 }
 
 function normalizeKey(name) {
