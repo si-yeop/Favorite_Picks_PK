@@ -820,10 +820,10 @@ function renderBoard() {
 
 function renderPickedBody(item, view) {
   if (view === "pokemon") {
-    return `<img src="${item.image}" data-art-style="pixel" data-fallback-src="${item.fallbackImage}" data-final-fallback-src="${item.finalFallbackImage}" alt="${item.name}" loading="lazy" onerror="handleImageError(this, '${escapeAttr(item.name)}')" />`;
+    return `<img src="${item.image}" data-art-style="pixel" data-fallback-src="${item.fallbackImage}" data-final-fallback-src="${item.finalFallbackImage}" alt="${item.name}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="handleImageError(this, '${escapeAttr(item.name)}')" />`;
   }
   if (item.image) {
-    return `<img src="${item.image}" data-art-style="smooth" ${item.fallbackImage ? `data-fallback-src="${item.fallbackImage}"` : ""} alt="${item.name}" loading="lazy" onerror="handleImageError(this, '${escapeAttr(item.name)}')" />`;
+    return `<img src="${item.image}" data-art-style="smooth" ${item.fallbackImage ? `data-fallback-src="${item.fallbackImage}"` : ""} alt="${item.name}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="handleImageError(this, '${escapeAttr(item.name)}')" />`;
   }
   return `<div class="avatar-fallback">${initials(item.name)}</div>`;
 }
@@ -854,7 +854,7 @@ function renderCandidates() {
       const color = itemColor(item);
       const artStyle = state.view === "pokemon" ? "pixel" : "smooth";
       const image = item.image
-        ? `<img src="${item.image}" data-art-style="${artStyle}" ${item.fallbackImage ? `data-fallback-src="${item.fallbackImage}"` : ""} ${item.finalFallbackImage ? `data-final-fallback-src="${item.finalFallbackImage}"` : ""} alt="${item.name}" loading="lazy" onerror="handleImageError(this, '${escapeAttr(item.name)}')" />`
+        ? `<img src="${item.image}" data-art-style="${artStyle}" ${item.fallbackImage ? `data-fallback-src="${item.fallbackImage}"` : ""} ${item.finalFallbackImage ? `data-final-fallback-src="${item.finalFallbackImage}"` : ""} alt="${item.name}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="handleImageError(this, '${escapeAttr(item.name)}')" />`
         : `<div class="avatar-fallback">${initials(item.name)}</div>`;
       return `
         <button class="candidate-card ${picked ? "is-picked" : ""}" type="button"
@@ -1206,6 +1206,40 @@ function isStandingOfficialArtLikeCharacterImage(url) {
   return /(red|green|blue|yellow|gold|silver|crystal|ruby|sapphire|emerald|firered|leafgreen|diamond|pearl|platinum|heartgold|soulsilver|black|white|bw|b2w2|xy|oras|sun|moon|sm|usum|lgpe|swsh|bdsp|legends|arceus|scarlet|violet|sv)/i.test(file);
 }
 
+function isOfficialStandingFileTitle(title, record) {
+  const file = normalizeImageToken(title);
+  const sourceName = normalizeImageToken(record.sourceName);
+  const pageTitle = normalizeImageToken(record.pageTitle);
+  return (file.includes(sourceName) || file.includes(pageTitle)) &&
+    /\.(png|jpe?g|webp)$/i.test(title) &&
+    !isSpriteLikeCharacterImage(title) &&
+    !isSceneLikeCharacterImage(title) &&
+    isStandingOfficialArtLikeCharacterImage(title);
+}
+
+function isOfficialStandingImageCandidate(url, width, height, record) {
+  const file = normalizeImageToken(decodeURIComponent(url.split("/").pop() || ""));
+  const sourceName = normalizeImageToken(record.sourceName);
+  const pageTitle = normalizeImageToken(record.pageTitle);
+  return width >= 120 &&
+    height >= 120 &&
+    width / height <= 1.15 &&
+    (file.includes(sourceName) || file.includes(pageTitle)) &&
+    isOfficialStaticCharacterImage(url) &&
+    isStandingOfficialArtLikeCharacterImage(url);
+}
+
+function scoreOfficialStandingFileTitle(title, record) {
+  const file = normalizeImageToken(title);
+  const sourceName = normalizeImageToken(record.sourceName);
+  let score = 0;
+  if (file.includes(sourceName)) score += 1_000_000;
+  if (/(scarlet|violet|sv|legends|arceus|bdsp|swsh|lgpe|usum|sm|oras|xy|b2w2|bw)/i.test(title)) score += 140_000;
+  if (/(black white|black2 white2|omega ruby|alpha sapphire|sun moon|ultra sun|ultra moon|sword shield|brilliant diamond|shining pearl|scarlet violet)/i.test(title)) score += 120_000;
+  if (/(red|blue|green|yellow|gold|silver|crystal|ruby|sapphire|emerald|diamond|pearl|platinum)/i.test(title)) score += 60_000;
+  return score;
+}
+
 function normalizeImageToken(value) {
   return String(value || "")
     .toLowerCase()
@@ -1225,16 +1259,57 @@ async function hydrateOfficialCharacterImages(records) {
   const targets = records.filter((record) => record.pageTitle);
   await mapLimit(targets, 6, async (record) => {
     try {
-      const url = `https://bulbapedia.bulbagarden.net/w/api.php?action=parse&prop=text&format=json&origin=*&page=${encodeURIComponent(record.pageTitle)}`;
-      const response = await fetch(url);
-      if (!response.ok) return;
-      const payload = await response.json();
-      const image = extractOfficialCharacterPageImage(payload?.parse?.text?.["*"], record);
+      const image = await findOfficialStandingImage(record);
       if (image) record.image = image;
     } catch {
       return;
     }
   });
+}
+
+async function findOfficialStandingImage(record) {
+  const pageImagesUrl = `https://bulbapedia.bulbagarden.net/w/api.php?action=query&format=json&origin=*&prop=images&imlimit=500&titles=${encodeURIComponent(record.pageTitle)}`;
+  const pageImagesResponse = await fetch(pageImagesUrl);
+  if (!pageImagesResponse.ok) return "";
+  const pageImagesPayload = await pageImagesResponse.json();
+  const page = Object.values(pageImagesPayload?.query?.pages || {})[0];
+  const fileTitles = (page?.images || [])
+    .map((image) => image.title)
+    .filter((title) => isOfficialStandingFileTitle(title, record))
+    .sort((a, b) => scoreOfficialStandingFileTitle(b, record) - scoreOfficialStandingFileTitle(a, record))
+    .slice(0, 12);
+
+  const directUrl = await resolveBestImageInfo(fileTitles, record);
+  if (directUrl) return directUrl;
+
+  const parseUrl = `https://bulbapedia.bulbagarden.net/w/api.php?action=parse&prop=text&format=json&origin=*&page=${encodeURIComponent(record.pageTitle)}`;
+  const parseResponse = await fetch(parseUrl);
+  if (!parseResponse.ok) return "";
+  const parsePayload = await parseResponse.json();
+  return extractOfficialCharacterPageImage(parsePayload?.parse?.text?.["*"], record);
+}
+
+async function resolveBestImageInfo(fileTitles, record) {
+  if (!fileTitles.length) return "";
+  const url = `https://bulbapedia.bulbagarden.net/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=url|size&titles=${encodeURIComponent(fileTitles.join("|"))}`;
+  const response = await fetch(url);
+  if (!response.ok) return "";
+  const payload = await response.json();
+  const candidates = Object.values(payload?.query?.pages || [])
+    .map((page) => {
+      const info = page?.imageinfo?.[0];
+      const directUrl = info?.url || "";
+      const width = Number(info?.width || 0);
+      const height = Number(info?.height || 0);
+      if (!directUrl || !isOfficialStandingImageCandidate(directUrl, width, height, record)) return null;
+      return {
+        url: directUrl,
+        score: scoreOfficialStandingFileTitle(page.title || directUrl, record) + width * height,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score);
+  return candidates[0]?.url || "";
 }
 
 function extractOfficialCharacterPageImage(html, record) {
