@@ -27,7 +27,6 @@ const ROLE_META = [
   { id: "elite-four", ko: "사천왕", color: "#0ea5e9", icon: "E" },
   { id: "champion", ko: "챔피언", color: "#facc15", icon: "C" },
   { id: "villain", ko: "악의 조직", color: "#9333ea", icon: "V" },
-  { id: "pokemon-trainer", ko: "포켓몬 트레이너", color: "#4f46e5", icon: "T" },
 ];
 
 const SOURCE_URLS = {
@@ -1425,7 +1424,11 @@ function normalizePersonRecord(record) {
 }
 
 function shouldKeepPerson(record) {
-  return Boolean(record.image) && Boolean(record.nameKo) && ROLE_META.some((role) => role.id === record.role);
+  return Boolean(record.image) &&
+    Boolean(record.nameKo) &&
+    record.name === record.nameKo &&
+    !/[A-Za-z]/.test(record.name) &&
+    ROLE_META.some((role) => role.id === record.role);
 }
 
 function normalizeKey(name) {
